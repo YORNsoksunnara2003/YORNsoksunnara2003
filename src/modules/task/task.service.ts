@@ -1,64 +1,38 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Task } from 'src/tasks/task.entity';
+import { Task } from './task.entity';
 import { Repository } from 'typeorm';
-import { CreateTask } from './dto/create-task.interface';
-import { User } from 'src/users/user.entity';
 
 @Injectable()
-export class TaskService {
+export class TasksService {
   constructor(
     @InjectRepository(Task)
     private tasksRepo: Repository<Task>,
-    @InjectRepository(User)
-    private usersRepo: Repository<User>,
   ) {}
 
-  getAllTasks() {
-    return this.tasksRepo.find({
-      relations: ['user'],
-    });
+  create(taskData: Partial<Task>) {
+    const task = this.tasksRepo.create(taskData);
+    return this.tasksRepo.save(task);
   }
 
-  getTask(id: number) {
+  findAll() {
+    return this.tasksRepo.find({ relations: ['user'] }); // assuming a Task belongs to a User
+  }
+
+  findOne(id: number) {
     return this.tasksRepo.findOne({ where: { id }, relations: ['user'] });
   }
 
-  async createTask(body: CreateTask) {
-    const user = await this.usersRepo.findOneBy({ id: body.userId });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    const task = this.tasksRepo.create({
-      name: body.name,
-      description: body.description,
-      createdAt: body.createdAt,
-      completedAt: body.completedAt,
-      user: user,
-    });
-    return this.tasksRepo.save(task);
-  }
-  async updateTask(id: number, body: CreateTask) {
-    const user = await this.usersRepo.findOneBy({ id: body.userId });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    const task = await this.tasksRepo.findOneBy({ id });
-    if (!task) {
-      throw new NotFoundException('Task not found');
-    }
-    task.name = body.name;
-    if (body.description !== undefined) task.description = body.description;
-    if (body.createdAt !== undefined) task.createdAt = body.createdAt;
-    if (body.completedAt !== undefined) task.completedAt = body.completedAt;
-    task.user = user;
-    return this.tasksRepo.save(task);
-  }
-  deleteTask(id: number) {
-    return this.tasksRepo.delete({ id });
+  async update(id: number, updateData: Partial<Task>) {
+    await this.tasksRepo.update(id, updateData);
+    return this.findOne(id);
   }
 
-  deleteAllTasks() {
-    return this.tasksRepo.clear();
+  async remove(id: number) {
+    const result = await this.tasksRepo.softDelete(id);
+    if (result.affected === 0) {
+      throw new Error(`Task with id ${id} not found`);
+    }
+    return { message: `Task with id ${id} has been soft deleted` };
   }
 }
